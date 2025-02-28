@@ -330,7 +330,7 @@ server <- function(input, output, session) {
                aes(x = EvaluationYear,
                    y = Stacked_Emission_tCO2e,
                    color = factor(DepositYear))) +
-          geom_bar() +
+          geom_col() +
           scale_y_continuous(
             sec.axis = sec_axis(~ . / (input$gwpslid * 1000),
                                 name = "Emissions (Gg CH4)")
