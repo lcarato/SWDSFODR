@@ -1,0 +1,15 @@
+dir.create("SWDSFOD/vignettes", showWarnings=FALSE)
+
+vignette_Rmd <- '
+---
+title: "SWDSFOD Tutorial"
+output: rmarkdown::html_vignette
+vignette: >
+  %\\VignetteIndexEntry{SWDSFOD Tutorial}
+  %\\VignetteEngine{knitr::rmarkdown}
+  %\\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(SWDSFOD)
