@@ -1,4 +1,6 @@
-dir.create("SWDSFODR/inst", showWarnings=FALSE)
+# Create directories first
+dir.create("SWDSFODR", showWarnings = FALSE)
+dir.create("SWDSFODR/R", showWarnings = FALSE)
 
 shinyLauncher_R <- '
 # shinyLauncher.R
