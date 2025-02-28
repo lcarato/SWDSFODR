@@ -1,3 +1,4 @@
+dir.create("SWDSFODR", showWarnings=FALSE)
 dir.create("SWDSFODR/R", showWarnings=FALSE)
 calcSWDSEmissions_R <- '
 # calcSWDSEmissions.R
