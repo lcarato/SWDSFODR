@@ -8,7 +8,7 @@ shiny_app_R <- '
 library(shiny)
 library(ggplot2)
 library(DT)
-library(SWDSFOD)  # so we can use the exported functions
+library(SWDSFODR)  # so we can use the exported functions
 
 ui <- fluidPage(
   titlePanel("SWDSFOD Shiny App - Tool 04 (v08.1) FOD Model"),
