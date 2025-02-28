@@ -1,3 +1,5 @@
+dir.create("SWDSFODR/inst", showWarnings=FALSE)
+
 shinyLauncher_R <- '
 # shinyLauncher.R
 # Provides a function to run the Shiny App located in inst/shiny-app
