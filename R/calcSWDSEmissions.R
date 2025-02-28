@@ -1,3 +1,4 @@
+dir.create("SWDSFODR/R", showWarnings=FALSE)
 calcSWDSEmissions_R <- '
 # calcSWDSEmissions.R
 # Main functions for calculating methane emissions from SWDS
@@ -194,5 +195,4 @@ calcSWDSEmissionsMonthly <- function(W,
   return(result_tco2e)
 }
 '
-dir.create("SWDSFODR/R", showWarnings=FALSE)
 writeLines(calcSWDSEmissions_R, "SWDSFODR/R/calcSWDSEmissions.R")
