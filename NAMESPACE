@@ -1,8 +1,7 @@
 export(calcSWDSEmissionsYearly)
 export(calcSWDSEmissionsMonthly)
 export(calcSWDSEmissionsSimplified)
-export(runSWDSFODApp)
-
+export(runSWDSFODRApp)
 import(shiny)
 import(ggplot2)
 import(DT)
