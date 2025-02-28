@@ -26,7 +26,7 @@ ui <- fluidPage(
       numericInput("Fval", "F (fraction CH4 in gas)", 0.5, min = 0, max = 1, step = 0.1),
       numericInput("docf", "DOCf (decomposable fraction)", 0.5, min = 0, max = 1, step = 0.1),
       numericInput("mcf", "MCF (methane correction factor)", 1, min = 0, max = 1, step = 0.1),
-      numericInput("yearMonthTarget", "Year or Month Target", 5, min = 1, step = 1),
+      numericInput("yearMonthTarget", "Year or Month Target", 25, min = 1, step = 1),
       selectInput("climate_zone", "Climate Zone (Simplified Approach)", 
                   choices = c("tropical_wet", "tropical_dry",
                               "boreal_temperate_wet", "boreal_temperate_dry"),
