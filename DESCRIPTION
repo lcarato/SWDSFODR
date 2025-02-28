@@ -1,6 +1,6 @@
-Package: SWDSFOD-R
+Package: SWDSFODR
 Type: Package
-Title: SWDSFOD-R - First Order Decay Methane Emissions from Solid Waste Disposal Sites
+Title: SWDSFODR - First Order Decay Methane Emissions from Solid Waste Disposal Sites
 Version: 1.0.0
 Authors@R: 
     person(
