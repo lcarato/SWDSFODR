@@ -1,9 +1,11 @@
 # app.R
-# A Shiny app for the SWDSFODR package with corrected Decay Chart
+# A Shiny app for the SWDSFODR package with stacked lines for Decay Chart
 
 library(shiny)
 library(ggplot2)
 library(DT)
+library(dplyr)
+library(tidyr)
 library(SWDSFODR)  # Use the new package name
 
 ui <- fluidPage(
@@ -170,7 +172,7 @@ server <- function(input, output, session) {
     outside_factor <- input$phi * (1 - input$f) * input$gwpslid * (1 - input$ox) *
                       (16/12) * input$Fval * input$docf * input$mcf
 
-    result <- data.frame()
+    raw <- data.frame()
     for (i in seq_len(nrow(df))) {
       deposit_year <- df$year[i]
       waste_type   <- as.character(df$waste_type[i])
@@ -186,17 +188,58 @@ server <- function(input, output, session) {
         # Emissions from this deposit in year y:
         emission_tCO2e <- mass * d_j * exp(-k_val * age) * (1 - exp(-k_val)) * outside_factor
 
-        result <- rbind(result, data.frame(
+        raw <- rbind(raw, data.frame(
           EvaluationYear   = y,
           DepositYear      = deposit_year,
           Emission_tCO2e   = emission_tCO2e
         ))
       }
     }
-    # Also add Gg CH4 column
-    result$Emission_GgCH4 <- result$Emission_tCO2e / (input$gwpslid * 1000)
-    result
+    raw$Emission_GgCH4 <- raw$Emission_tCO2e / (input$gwpslid * 1000)
+    raw
   })
+
+  # Helper function to transform raw per‐deposit data into stacked lines
+  stackedDecayData <- function(df_decay) {
+    # Pivot wide so each DepositYear is a column
+    df_wide <- df_decay %>%
+      pivot_wider(names_from = DepositYear, values_from = Emission_tCO2e, values_fill = 0) %>%
+      arrange(EvaluationYear)
+
+    deposit_years <- sort(unique(df_decay$DepositYear))
+
+    # Create cumulative "stacked_" columns
+    for (i in seq_along(deposit_years)) {
+      col_i <- as.character(deposit_years[i])
+      if (i == 1) {
+        df_wide[[paste0("stacked_", col_i)]] <- df_wide[[col_i]]
+      } else {
+        prev_col <- paste0("stacked_", deposit_years[i - 1])
+        df_wide[[paste0("stacked_", col_i)]] <- df_wide[[col_i]] + df_wide[[prev_col]]
+      }
+    }
+
+    # Pivot longer to get stacked lines
+    df_long <- df_wide %>%
+      pivot_longer(
+        cols = starts_with("stacked_"),
+        names_to = "StackedDepositYear",
+        values_to = "Stacked_Emission_tCO2e"
+      ) %>%
+      mutate(
+        # Extract the numeric deposit year from "stacked_XX"
+        DepositYear = as.numeric(gsub("stacked_", "", StackedDepositYear))
+      ) %>%
+      select(EvaluationYear, DepositYear, Stacked_Emission_tCO2e)
+
+    # Also create a stacked GgCH4 version
+    # We'll do that by referencing the GWP in the environment. 
+    # Easiest is to left_join the raw wide data or recalc here if needed.
+    # For clarity, let's do the ratio after we pivot. 
+    # We can guess the same ratio as original: Emission_GgCH4 = Emission_tCO2e / (gwp * 1000).
+    # But we need the GWP from input$gwpslid. We'll store that in the function or pass as an argument.
+    df_long
+  }
 
   # --- 5) Outputs ---
 
@@ -257,10 +300,10 @@ server <- function(input, output, session) {
       theme_minimal()
   })
 
-  # Decay Chart for each deposit year (Annual only)
+  # Decay Chart (stacked lines) for each deposit year (Annual only)
   output$decayChart <- renderPlot({
-    # If not annual approach, show a placeholder
     if (input$approach != "annual") {
+      # If not annual, show a placeholder
       ggplot() +
         annotate("text", x = 1, y = 1,
                  label = "Decay chart available only for Annual Approach",
@@ -269,31 +312,42 @@ server <- function(input, output, session) {
     } else {
       req(decayData())
       df_decay <- decayData()
+      if (nrow(df_decay) == 0) {
+        ggplot() +
+          annotate("text", x = 1, y = 1,
+                   label = "No valid deposit data found.",
+                   size = 6) +
+          theme_void()
+      } else {
+        # Convert to stacked lines
+        df_stacked <- stackedDecayData(df_decay)
 
-      # Non-stacked area approach: position = "identity", plus grouping by DepositYear
-      ggplot(df_decay,
-             aes(x = EvaluationYear,
-                 y = Emission_tCO2e,
-                 fill = factor(DepositYear),
-                 group = factor(DepositYear))) +
-        # Overlapping (identity) areas with transparency
-        geom_area(position = "identity", alpha = 0.5) +
-        # Optionally, add a line for clarity
-        geom_line(aes(color = factor(DepositYear)), size = 1) +
-        scale_y_continuous(
-          sec.axis = sec_axis(~ . / (input$gwpslid * 1000),
-                              name = "Emissions (Gg CH4)")
-        ) +
-        labs(
-          title = "Decay of Emissions Attributable to Each Deposit Year",
-          x = "Evaluation Year",
-          y = "Emissions (t CO2e)",
-          fill = "Deposit Year",
-          color = "Deposit Year"
-        ) +
-        theme_minimal()
+        # Convert to GgCH4
+        df_stacked <- df_stacked %>%
+          mutate(Stacked_Emission_GgCH4 = Stacked_Emission_tCO2e / (input$gwpslid * 1000))
+
+        ggplot(df_stacked,
+               aes(x = EvaluationYear,
+                   y = Stacked_Emission_tCO2e,
+                   color = factor(DepositYear))) +
+          geom_line(size = 1.2) +
+          scale_y_continuous(
+            sec.axis = sec_axis(~ . / (input$gwpslid * 1000),
+                                name = "Emissions (Gg CH4)")
+          ) +
+          labs(
+            title = "Stacked Lines: Decay of Emissions by Deposit Year",
+            subtitle = "Each line is cumulative up to that deposit year",
+            x = "Evaluation Year",
+            y = "Emissions (t CO2e)",
+            color = "Deposit Year"
+          ) +
+          theme_minimal()
+      }
     }
   })
 }
+
+shinyApp(ui, server)
 
 shinyApp(ui, server)
