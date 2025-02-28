@@ -1,0 +1,32 @@
+Package: CDM-SWDSFOD-R
+Type: Package
+Title: SWDSFOD-R - First Order Decay Methane Emissions from Solid Waste Disposal Sites
+Version: 1.0.0
+Authors@R: 
+    person(
+      given = "Luciano",
+      family = "Caratori",
+      role = c("aut", "cre"),
+      email = "luciano@caratori.com.ar",
+    )
+Description: 
+  Implements the CDM "Tool 04: Emissions from solid waste disposal sites" (Version 08.1)
+  using a First Order Decay (FOD) model. Includes both annual and monthly calculations,
+  as well as simplified approaches for MSW. Also provides a Shiny UI to assist in 
+  parameter input, scenario configuration, and results visualization.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
+VignetteBuilder: knitr
+Imports:
+    stats,
+    utils,
+    shiny,
+    ggplot2,
+    DT
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Depends: R (>= 3.5.0)
