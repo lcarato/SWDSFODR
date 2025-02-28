@@ -40,23 +40,23 @@ calcSWDSEmissions_R <- '
 # )
 #
 # # Parameter assumptions:
-# docj  <- c(food=0.15, paper=0.40)
-# kj    <- c(food=0.06, paper=0.04)
-# phi   <- 1    # For project or leakage, can be 1
-# f     <- 0.0  # No methane recovery
-# gwp   <- 28   # AR5 default for methane
-# ox    <- 0.1
-# frac  <- 0.5
-# mcf   <- 1.0
+ docj  <- c(food=0.15, paper=0.40)
+ kj    <- c(food=0.06, paper=0.04)
+ phi   <- 1    # For project or leakage, can be 1
+ f     <- 0.0  # No methane recovery
+ gwp   <- 28   # AR5 default for methane
+ ox    <- 0.1
+ frac  <- 0.5
+ mcf   <- 1.0
 # # Calculate for year = 5
-# calcSWDSEmissionsYearly(
-#   W = waste_data, DOCj = docj, k_j = kj,
-#   phi_y = phi, f_y = f, GWP_CH4 = gwp,
-#   OX = ox, F = 0.5, DOCf_y = frac,
-#   MCF_y = mcf, year_target = 5
-# )
-#
-# @export
+ calcSWDSEmissionsYearly(
+   W = waste_data, DOCj = docj, k_j = kj,
+   phi_y = phi, f_y = f, GWP_CH4 = gwp,
+   OX = ox, F = 0.5, DOCf_y = frac,
+   MCF_y = mcf, year_target = 5
+ )
+
+ @export
 calcSWDSEmissionsYearly <- function(W,
                                     DOCj,
                                     k_j,
@@ -65,13 +65,13 @@ calcSWDSEmissionsYearly <- function(W,
                                     GWP_CH4 = 28,
                                     OX = 0.1,
                                     F  = 0.5,
-                                    DOCf_y = 0.5,
-                                    MCF_y  = 1,
+                                   DOCf_y = 0.5,
+                                   MCF_y  = 1,
                                     year_target = 1) {
   # Filter data for years <= year_target
   W_use <- W[W$year <= year_target, , drop=FALSE]
   # We ll sum up over j and x
-  # For each distinct waste type j in W, get DOC_j, k_j
+   For each distinct waste type j in W, get DOC_j, k_j
   # Then apply the sum in eq (1).
 
   # Equation (1) factor outside sums:
@@ -148,25 +148,25 @@ calcSWDSEmissionsYearly <- function(W,
 #   phi_y=1, f_y=0, GWP_CH4=28, OX=0.1, F=0.5,
 #   DOCf_m=0.5, MCF_y=1, month_target=6
 # )
-# @export
-calcSWDSEmissionsMonthly <- function(W,
+ @export
+ calcSWDSEmissionsMonthly <- function(W,
                                      DOCj,
                                      k_j,
-                                     phi_y = 1,
+                                    phi_y = 1,
                                      f_y   = 0,
                                      GWP_CH4 = 28,
                                      OX = 0.1,
                                      F  = 0.5,
                                      DOCf_m = 0.5,
                                      MCF_y  = 1,
-                                     month_target = 1) {
+                                    month_target = 1) {
   # Filter data for months <= month_target
   W_use <- W[W$month <= month_target, , drop=FALSE]
   # Outside factor from eq (2)
-  outside_factor <- phi_y * (1 - f_y) * GWP_CH4 * (1 - OX) * (16/12) * F * DOCf_m * MCF_y
-  partial_sum <- 0
-  unique_rows <- seq_len(nrow(W_use))
-  for(r in unique_rows) {
+   outside_factor <- phi_y * (1 - f_y) * GWP_CH4 * (1 - OX) * (16/12) * F * DOCf_m * MCF_y
+   partial_sum <- 0
+   unique_rows <- seq_len(nrow(W_use))
+   for(r in unique_rows) {
     row_month <- W_use$month[r]
     row_type  <- as.character(W_use$waste_type[r])
     row_mass  <- W_use$mass_tonnes[r]
@@ -177,13 +177,13 @@ calcSWDSEmissionsMonthly <- function(W,
     age_m <- month_target - row_month
     if(age_m < 0) age_m <- 0
     # eq (2) sum_i=1_to_m
-    # W_j,i * DOC_j * exp(-k_j*( (m - i)/12 )) * (1 - exp(-k_j/12))
-    term <- row_mass * d_j * exp(-k_val*(age_m/12)) * (1 - exp(-k_val/12))
-    partial_sum <- partial_sum + term
+     W_j,i * DOC_j * exp(-k_j*( (m - i)/12 )) * (1 - exp(-k_j/12))
+   term <- row_mass * d_j * exp(-k_val*(age_m/12)) * (1 - exp(-k_val/12))
+      partial_sum <- partial_sum + term
   }
 
-  result_tco2e <- outside_factor * partial_sum
-  return(result_tco2e)
+   result_tco2e <- outside_factor * partial_sum
+   return(result_tco2e)
 }
 '
 writeLines(calcSWDSEmissions_R, "SWDSFODR/R/calcSWDSEmissions.R")
