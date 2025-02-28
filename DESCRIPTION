@@ -4,10 +4,11 @@ Title: SWDSFODR - First Order Decay Methane Emissions from Solid Waste Disposal 
 Version: 1.0.0
 Authors@R: 
     person(
-      given = "Luciano",
-      family = "Caratori",
+      given = "YourName",
+      family = "Here",
       role = c("aut", "cre"),
-      email = "luciano@caratori.com.ar",
+      email = "youremail@example.com",
+      comment = c(ORCID = "YOUR-ORCID-ID")
     )
 Description: 
   Implements the CDM "Tool 04: Emissions from solid waste disposal sites" (Version 08.1)
