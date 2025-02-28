@@ -127,5 +127,4 @@ server <- function(input, output, session) {
 
 shinyApp(ui, server)
 '
-
 writeLines(shiny_app_R, "SWDSFODR/inst/shiny-app/app.R")
