@@ -4,40 +4,40 @@ simplifiedApproaches_R <- '
 # specifically "No waste composition monitoring" and "Reduced waste composition monitoring".
 
 # -----------------------------------------------------------
-#' Calculate SWDS CH4 Emissions (Simplified - No Composition Monitoring)
-#'
-#' @description
-#'   Implements the approach with no composition monitoring, using table of default_x
-#'   from the Appendix of Tool 04 (v08.1).
-#'
-#' @param W A data.frame or list giving the total annual waste disposal, e.g. columns:
-#'    year, mass_tonnes. We assume all is MSW with no composition breakdown.
-#' @param phi_y Model correction factor
-#' @param f_y Fraction of CH4 captured and destroyed
-#' @param GWP_CH4 Global Warming Potential of CH4
-#' @param default_table A data.frame or matrix of default factors by climate zone
-#'    (like the one in the official tool). The user can provide or use a built-in set.
-#' @param climate_zone A string in c("tropical_wet","tropical_dry","boreal_temperate_wet",
-#'    "boreal_temperate_dry") used to pick the correct column from default_table.
-#' @param year_target The year for which we want CH4 generation (the sum of each x up to that year).
-#'
-#' @return t CO2-equivalent methane emissions for that year.
-#'
-#' @references
-#'   Tool 04 (v08.1) Appendix, "No waste composition monitoring".
-#'
-#' @examples
-#' # Suppose we only track total MSW disposal (tonnes) each year 1..5
-#' waste_data <- data.frame(
-#'   year = 1:5,
-#'   mass_tonnes = c(100,120,140,160,180)
-#' )
-#' # We pick a climate zone, e.g. "tropical_wet"
-#' res <- calcSWDSEmissionsSimplified(
-#'   W = waste_data, phi_y=1, f_y=0, GWP_CH4=28,
-#'   climate_zone="tropical_wet", year_target=5
-#' )
-#' @export
+# Calculate SWDS CH4 Emissions (Simplified - No Composition Monitoring)
+#
+# @description
+#   Implements the approach with no composition monitoring, using table of default_x
+#   from the Appendix of Tool 04 (v08.1).
+#
+# @param W A data.frame or list giving the total annual waste disposal, e.g. columns:
+#    year, mass_tonnes. We assume all is MSW with no composition breakdown.
+# @param phi_y Model correction factor
+# @param f_y Fraction of CH4 captured and destroyed
+# @param GWP_CH4 Global Warming Potential of CH4
+# @param default_table A data.frame or matrix of default factors by climate zone
+#    (like the one in the official tool). The user can provide or use a built-in set.
+# @param climate_zone A string in c("tropical_wet","tropical_dry","boreal_temperate_wet",
+#    "boreal_temperate_dry") used to pick the correct column from default_table.
+# @param year_target The year for which we want CH4 generation (the sum of each x up to that year).
+#
+# @return t CO2-equivalent methane emissions for that year.
+#
+# @references
+#   Tool 04 (v08.1) Appendix, "No waste composition monitoring".
+#
+# @examples
+# # Suppose we only track total MSW disposal (tonnes) each year 1..5
+# waste_data <- data.frame(
+#   year = 1:5,
+#   mass_tonnes = c(100,120,140,160,180)
+# )
+# # We pick a climate zone, e.g. "tropical_wet"
+# res <- calcSWDSEmissionsSimplified(
+#   W = waste_data, phi_y=1, f_y=0, GWP_CH4=28,
+#   climate_zone="tropical_wet", year_target=5
+# )
+# @export
 calcSWDSEmissionsSimplified <- function(W,
                                         phi_y=1,
                                         f_y=0,
