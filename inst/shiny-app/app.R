@@ -70,7 +70,7 @@ server <- function(input, output, session) {
 
     if(approach=="annual") {
       # example usage: we need DOCj, k_j. Hardcode sample?
-      # Real usage: user would provide it. We'll guess for a demo:
+      # Real usage: user would provide it. Well guess for a demo:
       DOCj <- c(food=0.15, paper=0.4, other=0.2)
       k_j  <- c(food=0.06, paper=0.04, other=0.05)
 
