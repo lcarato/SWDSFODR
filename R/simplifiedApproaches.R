@@ -94,4 +94,4 @@ calcSWDSEmissionsSimplified <- function(W,
   return(result_tco2e)
 }
 '
-writeLines(simplifiedApproaches_R, "SWDSFOD/R/simplifiedApproaches.R")
+writeLines(simplifiedApproaches_R, "SWDSFODR/R/simplifiedApproaches.R")
