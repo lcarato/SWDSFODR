@@ -1,0 +1,10 @@
+export(calcSWDSEmissionsYearly)
+export(calcSWDSEmissionsMonthly)
+export(calcSWDSEmissionsSimplified)
+export(runSWDSFODApp)
+
+import(shiny)
+import(ggplot2)
+import(DT)
+
+# For roxygen2-generated documentation
