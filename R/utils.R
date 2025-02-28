@@ -4,4 +4,4 @@ utils_R <- '
 
 # We could add some parameter-checking or conversions here if desired.
 '
-writeLines(utils_R, "SWDSFOD/R/utils.R")
+writeLines(utils_R, "SWDSFODR/R/utils.R")
