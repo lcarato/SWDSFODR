@@ -116,7 +116,7 @@ server <- function(input, output, session) {
     df <- emissionsResult()
     val <- df$Emissions_tCO2e[1]
     approach <- input$approach
-    # We'll just plot a bar or single column if only one value
+    # We ll just plot a bar or single column if only one value
     # Could expand for multi-year plotting if user wants to do more advanced logic.
     ggplot(data=data.frame(Approach=approach, Emissions=val), aes(x=Approach, y=Emissions)) +
       geom_col(fill="steelblue") +
