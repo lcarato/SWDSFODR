@@ -17,4 +17,4 @@ runSWDSFODApp <- function() {
   shiny::runApp(appDir, display.mode = "normal")
 }
 '
-writeLines(shinyLauncher_R, "SWDSFOD/R/shinyLauncher.R")
+writeLines(shinyLauncher_R, "SWDSFODR/R/shinyLauncher.R")
