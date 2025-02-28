@@ -1,5 +1,5 @@
-dir.create("SWDSFOD/inst", showWarnings=FALSE)
-dir.create("SWDSFOD/inst/shiny-app", showWarnings=FALSE)
+dir.create("SWDSFODR/inst", showWarnings=FALSE)
+dir.create("SWDSFODR/inst/shiny-app", showWarnings=FALSE)
 
 shiny_app_R <- '
 # app.R
