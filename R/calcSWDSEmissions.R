@@ -1,189 +1,162 @@
 dir.create("SWDSFODR", showWarnings=FALSE)
 dir.create("SWDSFODR/R", showWarnings=FALSE)
-calcSWDSEmissions_R <- '
-# calcSWDSEmissions.R
-# Main functions for calculating methane emissions from SWDS
-# according to the equations given in Tool 04 (v08.1).
-# -----------------------------------------------------------
-# Calculate SWDS CH4 Emissions (Annual Model)
-#
-# @description
-#   Implements Equation (1) from Tool 04 (v08.1) for a yearly approach.
-#
-# @param W A data.frame or list giving the amounts of waste disposed (W_j,x).
-#        Must include columns/entries for each waste type j, by year x.
-#        For example, a data frame with columns: year, waste_type, mass_tonnes.
-# @param DOCj Vector or named list of degradable organic carbon fraction(s)
-#        for each waste type j. If your data has multiple waste types, ensure
-#        names(DOCj) match levels of waste_type in your data.
-# @param k_j Vector or named list of decay rates for each waste type j (1/yr).
-# @param phi_y Model correction factor for year y (phi_y).
-# @param f_y Fraction of CH4 captured and destroyed in year y (f_y).
-# @param GWP_CH4 Global Warming Potential of CH4.
-# @param OX Oxidation factor.
-# @param F Fraction of CH4 in landfill gas.
-# @param DOCf_y Fraction of degradable organic carbon that decomposes (DOCf).
-# @param MCF_y Methane correction factor for year y.
-# @param year_target The year y for which we want to calculate CH4 generation.
-#
-# @return Estimated CH4 emissions (in t CO2-equivalent) for that target year.
-#
-# @references
-#   Tool 04: Emissions from solid waste disposal sites (Version 08.1).
-# @examples
-# # Suppose we have 2 waste types: "food" and "paper"
-# # We have disposal data for years 1 to 5 (tonnes).
-# waste_data <- data.frame(
-#   year = rep(1:5, each=2),
-#   waste_type = rep(c("food","paper"), 5),
-#   mass_tonnes = c(100,50,120,60,140,70,160,80,180,90)
-# )
-#
-# # Parameter assumptions:
- docj  <- c(food=0.15, paper=0.40)
- kj    <- c(food=0.06, paper=0.04)
- phi   <- 1    # For project or leakage, can be 1
- f     <- 0.0  # No methane recovery
- gwp   <- 28   # AR5 default for methane
- ox    <- 0.1
- frac  <- 0.5
- mcf   <- 1.0
-# # Calculate for year = 5
- calcSWDSEmissionsYearly(
-   W = waste_data, DOCj = docj, k_j = kj,
-   phi_y = phi, f_y = f, GWP_CH4 = gwp,
-   OX = ox, F = 0.5, DOCf_y = frac,
-   MCF_y = mcf, year_target = 5
- )
-
- @export
+# calcSWDSEmissions.R - implementation of yearly and monthly models
+calc_emissions_R <- "#' Calculate SWDS CH4 Emissions (Annual Model)
+#'
+#' @description
+#'   Implements Equation (1) from Tool 04 (v08.1) to estimate annual CH4 emissions.
+#'
+#' @param W A data frame with columns year, waste_type, mass_tonnes
+#' @param DOCj Named numeric for degradable organic carbon fraction(s)
+#' @param k_j  Named numeric for decay rate(s)
+#' @param phi_y Model correction factor
+#' @param f_y Fraction of CH4 captured
+#' @param GWP_CH4 Global warming potential of CH4
+#' @param OX Oxidation factor
+#' @param F Fraction of CH4 in landfill gas
+#' @param DOCf_y Fraction of degradable organic carbon that decomposes
+#' @param MCF_y Methane correction factor
+#' @param year_target The year for which to calculate CH4 generation
+#'
+#' @return Estimated CH4 emissions in t CO2e
+#' @export
 calcSWDSEmissionsYearly <- function(W,
                                     DOCj,
                                     k_j,
                                     phi_y = 1,
-                                    f_y   = 0,
+                                    f_y = 0,
                                     GWP_CH4 = 28,
                                     OX = 0.1,
-                                    F  = 0.5,
-                                   DOCf_y = 0.5,
-                                   MCF_y  = 1,
-                                    year_target = 1) {
-  # Filter data for years <= year_target
-  W_use <- W[W$year <= year_target, , drop=FALSE]
-  # We ll sum up over j and x
-   For each distinct waste type j in W, get DOC_j, k_j
-  # Then apply the sum in eq (1).
-
-  # Equation (1) factor outside sums:
-  outside_factor <- phi_y * (1 - f_y) * GWP_CH4 * (1 - OX) * (16/12) * F * DOCf_y * MCF_y
-
-  # We need to sum( W_j,x * DOC_j * e^(-k_j*(year_target - x)) * (1 - e^(-k_j)) )
-  # by waste type j, by each x in W.
-
-  # Re-check that W has columns: year, waste_type, mass_tonnes
-  if(!all(c("year","waste_type","mass_tonnes") %in% names(W_use))) {
-    stop("Input data frame W must have columns: year, waste_type, mass_tonnes")
+                                    F = 0.5,
+                                    DOCf_y = 0.5,
+                                    MCF_y = 1,
+                                    year_target = max(W$year)) {
+  # Check input consistency
+  waste_types <- unique(W$waste_type)
+  if(!all(waste_types %in% names(DOCj)) || !all(waste_types %in% names(k_j))) {
+    stop(\"All waste types in data must have corresponding DOCj and k_j values\")
   }
-  # We ll compute partial_sum by looping or using aggregate
-  # Let s do by row approach for clarity
-  partial_sum <- 0
-
-  unique_rows <- seq_len(nrow(W_use))
-  for(r in unique_rows) {
-    row_year  <- W_use$year[r]
-    row_type  <- as.character(W_use$waste_type[r])
-    row_mass  <- W_use$mass_tonnes[r]
-    if(!row_type %in% names(DOCj)) stop("DOCj does not have an entry for waste type: ", row_type)
-    if(!row_type %in% names(k_j))   stop("k_j does not have an entry for waste type: ", row_type)
-
-    d_j   <- DOCj[[row_type]]
-    k_val <- k_j[[row_type]]
-    age   <- year_target - row_year
-    if(age < 0) age <- 0 # if year_target < row_year, skip or set 0
-
-    # Summation term = W_j,x * DOC_j * e^(-k_j*(y-x)) * (1 - e^(-k_j))
-    term <- row_mass * d_j * exp(-k_val * age) * (1 - exp(-k_val))
-    partial_sum <- partial_sum + term
+  
+  # Filter data to years <= target year
+  W_filtered <- W[W$year <= year_target, ]
+  
+  # Initialize total CH4 generation
+  total_ch4 <- 0
+  
+  # Calculate for each waste type j
+  for (j in waste_types) {
+    # Filter data for this waste type
+    W_j <- W_filtered[W_filtered$waste_type == j, ]
+    
+    # Get parameters for waste type j
+    doc_j <- DOCj[j]
+    k_j_val <- k_j[j]
+    
+    # Calculate sum over x (years of waste deposits)
+    ch4_j <- 0
+    for (x in 1:nrow(W_j)) {
+      year_x <- W_j$year[x]
+      waste_x <- W_j$mass_tonnes[x]
+      
+      # Time since deposition (y - x) in years
+      time_diff <- year_target - year_x
+      
+      # Calculate the term inside the sum
+      decay_term <- exp(-k_j_val * time_diff) * (1 - exp(-k_j_val))
+      
+      # Accumulate
+      ch4_j <- ch4_j + waste_x * doc_j * decay_term
+    }
+    
+    # Add this waste type's contribution to total
+    total_ch4 <- total_ch4 + ch4_j
   }
-  # Final
-  result_tco2e <- outside_factor * partial_sum
-  return(result_tco2e)
+  
+  # Apply remaining factors from equation (1)
+  result <- phi_y * (1 - f_y) * F * MCF_y * DOCf_y * (16/12) * total_ch4 * (1 - OX) * GWP_CH4
+  
+  return(result)
 }
-# -----------------------------------------------------------
-# Calculate SWDS CH4 Emissions (Monthly Model)
-#
-# @description
-#   Implements Equation (2) from Tool 04 (v08.1) for a monthly approach.
-#
-# @param W A data.frame or list giving the amounts of waste disposed (W_j,i)
-#        Must include columns: month, waste_type, mass_tonnes.
-#        month is a numeric from 1..N.
-# @param DOCj Vector or named list of degradable organic carbon fraction(s).
-# @param k_j Vector or named list of decay rates for each waste type j (1/yr).
-# @param phi_y Model correction factor (phi_y).
-# @param f_y Fraction of CH4 captured and destroyed (f_y).
-# @param GWP_CH4 Global Warming Potential of CH4.
-# @param OX Oxidation factor.
-# @param F Fraction of CH4 in landfill gas.
-# @param DOCf_m Fraction of degradable organic carbon that decomposes (DOCf).
-# @param MCF_y Methane correction factor.
-# @param month_target The month m for which we want to calculate CH4 generation.
-#
-# @return Estimated CH4 emissions (in t CO2-equivalent) for that month.
-#
-# @references
-#   Tool 04: Emissions from solid waste disposal sites (Version 08.1).
-#
-# @examples
-# # Example monthly data:
-# monthly_data <- data.frame(
-#   month = rep(1:6, each=2),
-#   waste_type = rep(c("food","paper"), 6),
-#   mass_tonnes = c(10,5,12,6,14,7,16,8,18,9,20,10)
-# )
-# docj  <- c(food=0.15, paper=0.40)
-# kj    <- c(food=0.06, paper=0.04)
-# res <- calcSWDSEmissionsMonthly(
-#   W=monthly_data, DOCj=docj, k_j=kj,
-#   phi_y=1, f_y=0, GWP_CH4=28, OX=0.1, F=0.5,
-#   DOCf_m=0.5, MCF_y=1, month_target=6
-# )
- @export
- calcSWDSEmissionsMonthly <- function(W,
-                                     DOCj,
-                                     k_j,
-                                    phi_y = 1,
-                                     f_y   = 0,
-                                     GWP_CH4 = 28,
-                                     OX = 0.1,
-                                     F  = 0.5,
-                                     DOCf_m = 0.5,
-                                     MCF_y  = 1,
-                                    month_target = 1) {
-  # Filter data for months <= month_target
-  W_use <- W[W$month <= month_target, , drop=FALSE]
-  # Outside factor from eq (2)
-   outside_factor <- phi_y * (1 - f_y) * GWP_CH4 * (1 - OX) * (16/12) * F * DOCf_m * MCF_y
-   partial_sum <- 0
-   unique_rows <- seq_len(nrow(W_use))
-   for(r in unique_rows) {
-    row_month <- W_use$month[r]
-    row_type  <- as.character(W_use$waste_type[r])
-    row_mass  <- W_use$mass_tonnes[r]
-    if(!row_type %in% names(DOCj)) stop("DOCj does not have an entry for waste type: ", row_type)
-    if(!row_type %in% names(k_j))   stop("k_j does not have an entry for waste type: ", row_type)
-    d_j   <- DOCj[[row_type]]
-    k_val <- k_j[[row_type]]
-    age_m <- month_target - row_month
-    if(age_m < 0) age_m <- 0
-    # eq (2) sum_i=1_to_m
-     W_j,i * DOC_j * exp(-k_j*( (m - i)/12 )) * (1 - exp(-k_j/12))
-   term <- row_mass * d_j * exp(-k_val*(age_m/12)) * (1 - exp(-k_val/12))
-      partial_sum <- partial_sum + term
-  }
 
-   result_tco2e <- outside_factor * partial_sum
-   return(result_tco2e)
+#' Calculate SWDS CH4 Emissions (Monthly Model)
+#'
+#' @description
+#'   Implements the monthly version of the FOD model to estimate CH4 emissions
+#'   with higher temporal resolution.
+#'
+#' @param W A data frame with columns month, waste_type, mass_tonnes
+#' @param DOCj Named numeric for degradable organic carbon fraction(s)
+#' @param k_j  Named numeric for decay rate(s)
+#' @param phi_y Model correction factor
+#' @param f_y Fraction of CH4 captured
+#' @param GWP_CH4 Global warming potential of CH4
+#' @param OX Oxidation factor
+#' @param F Fraction of CH4 in landfill gas
+#' @param DOCf_m Fraction of degradable organic carbon that decomposes
+#' @param MCF_y Methane correction factor
+#' @param month_target The month for which to calculate CH4 generation (integer from 1...)
+#'
+#' @return Estimated CH4 emissions in t CO2e
+#' @export
+calcSWDSEmissionsMonthly <- function(W,
+                                      DOCj,
+                                      k_j,
+                                      phi_y = 1,
+                                      f_y = 0,
+                                      GWP_CH4 = 28,
+                                      OX = 0.1,
+                                      F = 0.5,
+                                      DOCf_m = 0.5,
+                                      MCF_y = 1,
+                                      month_target = max(W$month)) {
+  # Check input consistency
+  waste_types <- unique(W$waste_type)
+  if(!all(waste_types %in% names(DOCj)) || !all(waste_types %in% names(k_j))) {
+    stop(\"All waste types in data must have corresponding DOCj and k_j values\")
+  }
+  
+  # Filter data to months <= target month
+  W_filtered <- W[W$month <= month_target, ]
+  
+  # Convert monthly decay rates (k values need to be divided by 12)
+  k_j_monthly <- k_j / 12
+  
+  # Initialize total CH4 generation
+  total_ch4 <- 0
+  
+  # Calculate for each waste type j
+  for (j in waste_types) {
+    # Filter data for this waste type
+    W_j <- W_filtered[W_filtered$waste_type == j, ]
+    
+    # Get parameters for waste type j
+    doc_j <- DOCj[j]
+    k_j_val <- k_j_monthly[j]
+    
+    # Calculate sum over m (months of waste deposits)
+    ch4_j <- 0
+    for (x in 1:nrow(W_j)) {
+      month_x <- W_j$month[x]
+      waste_x <- W_j$mass_tonnes[x]
+      
+      # Time since deposition (month_target - month_x) in months
+      time_diff <- month_target - month_x
+      
+      # Calculate the term inside the sum
+      decay_term <- exp(-k_j_val * time_diff) * (1 - exp(-k_j_val))
+      
+      # Accumulate
+      ch4_j <- ch4_j + waste_x * doc_j * decay_term
+    }
+    
+    # Add this waste type's contribution to total
+    total_ch4 <- total_ch4 + ch4_j
+  }
+  
+  # Apply remaining factors from equation (1), adapted for monthly calculations
+  result <- phi_y * (1 - f_y) * F * MCF_y * DOCf_m * (16/12) * total_ch4 * (1 - OX) * GWP_CH4
+  
+  return(result)
 }
-'
-writeLines(calcSWDSEmissions_R, "SWDSFODR/R/calcSWDSEmissions.R")
+"
+writeLines(calc_emissions_R, "SWDSFODR/R/calcSWDSEmissions.R")
