@@ -46,7 +46,7 @@ calcSWDSEmissionsSimplified <- function(W,
                                         year_target=max(W$year),
                                         default_table=NULL) {
 
-  # If default_table not provided, we embed the one from the tool's Appendix:
+  # If default_table not provided, we embed the one from the tool s Appendix:
   if(is.null(default_table)) {
     default_table <- data.frame(
       x = 1:21,
