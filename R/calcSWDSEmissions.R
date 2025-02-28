@@ -194,5 +194,5 @@ calcSWDSEmissionsMonthly <- function(W,
   return(result_tco2e)
 }
 '
-dir.create("SWDSFOD/R", showWarnings=FALSE)
-writeLines(calcSWDSEmissions_R, "SWDSFOD/R/calcSWDSEmissions.R")
+dir.create("SWDSFODR/R", showWarnings=FALSE)
+writeLines(calcSWDSEmissions_R, "SWDSFODR/R/calcSWDSEmissions.R")
