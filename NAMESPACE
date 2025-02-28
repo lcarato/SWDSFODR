@@ -1,8 +1,7 @@
-namespace_content <- "
-
+namespace_content <- 
 export(calcSWDSEmissionsYearly)
 export(calcSWDSEmissionsMonthly)
 export(calcSWDSEmissionsSimplified)
 export(runSWDSFODRApp)
-"
+
 writeLines(namespace_content, "SWDSFODR/NAMESPACE")
