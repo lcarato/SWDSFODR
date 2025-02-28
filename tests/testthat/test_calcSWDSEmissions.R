@@ -1,11 +1,11 @@
-dir.create("SWDSFOD/tests", showWarnings=FALSE)
-dir.create("SWDSFOD/tests/testthat", showWarnings=FALSE)
+dir.create("SWDSFODR/tests", showWarnings=FALSE)
+dir.create("SWDSFODR/tests/testthat", showWarnings=FALSE)
 
 test_calcSWDSEmissions_R <- '
 # test_calcSWDSEmissions.R
 
 library(testthat)
-library(SWDSFOD)
+library(SWDSFODR)
 
 test_that("calcSWDSEmissionsYearly works with small example", {
   waste_data <- data.frame(
@@ -53,4 +53,4 @@ test_that("calcSWDSEmissionsSimplified returns numeric", {
   expect_true(val > 0)
 })
 '
-writeLines(test_calcSWDSEmissions_R, "SWDSFOD/tests/testthat/test_calcSWDSEmissions.R")
+writeLines(test_calcSWDSEmissions_R, "SWDSFODR/tests/testthat/test_calcSWDSEmissions.R")
