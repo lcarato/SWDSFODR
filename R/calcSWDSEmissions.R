@@ -2,7 +2,6 @@ calcSWDSEmissions_R <- '
 # calcSWDSEmissions.R
 # Main functions for calculating methane emissions from SWDS
 # according to the equations given in Tool 04 (v08.1).
-
 # -----------------------------------------------------------
 #' Calculate SWDS CH4 Emissions (Annual Model)
 #'
