@@ -4,7 +4,6 @@ calcSWDSEmissions_R <- '
 # calcSWDSEmissions.R
 # Main functions for calculating methane emissions from SWDS
 # according to the equations given in Tool 04 (v08.1).
-
 # -----------------------------------------------------------
 # Calculate SWDS CH4 Emissions (Annual Model)
 #
@@ -85,7 +84,6 @@ calcSWDSEmissionsYearly <- function(W,
   if(!all(c("year","waste_type","mass_tonnes") %in% names(W_use))) {
     stop("Input data frame W must have columns: year, waste_type, mass_tonnes")
   }
-
   # We ll compute partial_sum by looping or using aggregate
   # Let s do by row approach for clarity
   partial_sum <- 0
@@ -107,13 +105,10 @@ calcSWDSEmissionsYearly <- function(W,
     term <- row_mass * d_j * exp(-k_val * age) * (1 - exp(-k_val))
     partial_sum <- partial_sum + term
   }
-
   # Final
   result_tco2e <- outside_factor * partial_sum
   return(result_tco2e)
 }
-
-
 # -----------------------------------------------------------
 # Calculate SWDS CH4 Emissions (Monthly Model)
 #
@@ -169,23 +164,18 @@ calcSWDSEmissionsMonthly <- function(W,
   W_use <- W[W$month <= month_target, , drop=FALSE]
   # Outside factor from eq (2)
   outside_factor <- phi_y * (1 - f_y) * GWP_CH4 * (1 - OX) * (16/12) * F * DOCf_m * MCF_y
-
   partial_sum <- 0
   unique_rows <- seq_len(nrow(W_use))
   for(r in unique_rows) {
     row_month <- W_use$month[r]
     row_type  <- as.character(W_use$waste_type[r])
     row_mass  <- W_use$mass_tonnes[r]
-
     if(!row_type %in% names(DOCj)) stop("DOCj does not have an entry for waste type: ", row_type)
     if(!row_type %in% names(k_j))   stop("k_j does not have an entry for waste type: ", row_type)
-
     d_j   <- DOCj[[row_type]]
     k_val <- k_j[[row_type]]
-
     age_m <- month_target - row_month
     if(age_m < 0) age_m <- 0
-
     # eq (2) sum_i=1_to_m
     # W_j,i * DOC_j * exp(-k_j*( (m - i)/12 )) * (1 - exp(-k_j/12))
     term <- row_mass * d_j * exp(-k_val*(age_m/12)) * (1 - exp(-k_val/12))
