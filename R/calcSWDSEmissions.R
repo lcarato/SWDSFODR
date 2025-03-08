@@ -97,6 +97,8 @@ calcSWDSEmissionsYearly <- function(W,
   }
 
   result_tco2e <- outside_factor * partial_sum
+  # Ensure emissions are non-negative and cumulative emissions never decline
+  result_tco2e <- pmax(result_tco2e, 0)
   return(result_tco2e)
 }
 
