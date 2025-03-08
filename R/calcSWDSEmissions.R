@@ -1,180 +1,113 @@
-# calcSWDSEmissions.R
-# Main functions for calculating methane emissions from SWDS
-# according to the equations given in Tool 04 (v08.1).
+# simplifiedApproaches.R
+# Implements the simplified approaches from the appendix of Tool 04 (v08.1),
+# specifically "No waste composition monitoring" and "Reduced waste composition monitoring".
+# Enhanced with multi-region support.
 
 # -----------------------------------------------------------
-#' Calculate SWDS CH4 Emissions (Annual Model)
+#' Calculate SWDS CH4 Emissions (Simplified - No Composition Monitoring)
 #'
 #' @description
-#'   Implements Equation (1) from Tool 04 (v08.1) for a yearly approach.
+#'   Implements the approach with no composition monitoring, using a table of default factors
+#'   from the Appendix of Tool 04 (v08.1). Enhanced with region-specific parameter support.
 #'
-#' @param W A data.frame or list giving the amounts of waste disposed (W_j,x).
-#'        Must include columns/entries for each waste type j, by year x.
-#'        For example, a data frame with columns: year, waste_type, mass_tonnes.
-#' @param DOCj Vector or named list of degradable organic carbon fraction(s)
-#'        for each waste type j. If your data has multiple waste types, ensure
-#'        names(DOCj) match levels of waste_type in your data.
-#' @param k_j Vector or named list of decay rates for each waste type j (1/yr).
-#' @param phi_y Model correction factor for year y (phi_y).
-#' @param f_y Fraction of CH4 captured and destroyed in year y (f_y).
+#' @param W A data.frame giving the total annual waste disposal, with columns:
+#'    year, mass_tonnes, and optionally region.
+#' @param phi_y Model correction factor. Can be a single value or a named
+#'        vector with region names.
+#' @param f_y Fraction of CH4 captured and destroyed. Can be a single value or a 
+#'        named vector with region names.
 #' @param GWP_CH4 Global Warming Potential of CH4.
-#' @param OX Oxidation factor.
-#' @param F Fraction of CH4 in landfill gas.
-#' @param DOCf_y Fraction of degradable organic carbon that decomposes (DOCf).
-#' @param MCF_y Methane correction factor for year y.
-#' @param year_target The year y for which we want to calculate CH4 generation.
+#' @param climate_zone A string for the climate zone or a named vector with region names.
+#'    Values should be in c("tropical_wet","tropical_dry","boreal_temperate_wet",
+#'    "boreal_temperate_dry") used to pick the correct column from the default table.
+#' @param year_target The year for which we want CH4 generation. Can be a single value
+#'    or a named vector with region names.
+#' @param default_table (Optional) A data.frame or matrix of default factors by climate zone.
+#' @param by_region Logical, if TRUE returns results by region, otherwise returns total sum.
 #'
-#' @return Estimated CH4 emissions (in t CO2-equivalent) for that target year.
+#' @return If by_region is TRUE, a named vector of estimated CH4 emissions (in t CO2-equivalent) 
+#'         for each region. Otherwise, returns a single value for all regions combined.
 #'
 #' @references
-#'   Tool 04: Emissions from solid waste disposal sites (Version 08.1).
-#' @examples
-#' # Suppose we have 2 waste types: "food" and "paper"
-#' # We have disposal data for years 1 to 5 (tonnes).
-#' waste_data <- data.frame(
-#'   year = rep(1:5, each=2),
-#'   waste_type = rep(c("food","paper"), 5),
-#'   mass_tonnes = c(100,50,120,60,140,70,160,80,180,90)
-#' )
-#'
-#' # Parameter assumptions:
-#' docj  <- c(food=0.15, paper=0.40)
-#' kj    <- c(food=0.06, paper=0.04)
-#' phi   <- 1    # For project or leakage, can be 1
-#' f     <- 0.0  # No methane recovery
-#' gwp   <- 28   # AR5 default for methane
-#' ox    <- 0.1
-#' frac  <- 0.5
-#' mcf   <- 1.0
-#' # Calculate for year = 5
-#' calcSWDSEmissionsYearly(
-#'   W = waste_data, DOCj = docj, k_j = kj,
-#'   phi_y = phi, f_y = f, GWP_CH4 = gwp,
-#'   OX = ox, F = 0.5, DOCf_y = frac,
-#'   MCF_y = mcf, year_target = 5
-#' )
+#'   Tool 04 (v08.1) Appendix, "No waste composition monitoring".
 #'
 #' @export
-calcSWDSEmissionsYearly <- function(W,
-                                    DOCj,
-                                    k_j,
-                                    phi_y = 1,
-                                    f_y   = 0,
-                                    GWP_CH4 = 28,
-                                    OX = 0.1,
-                                    F  = 0.5,
-                                    DOCf_y = 0.5,
-                                    MCF_y  = 1,
-                                    year_target = 1) {
-  # Filter data for years <= year_target
-  W_use <- W[W$year <= year_target, , drop=FALSE]
-
-  # Equation (1) factor outside sums:
-  outside_factor <- phi_y * (1 - f_y) * GWP_CH4 * (1 - OX) * (16/12) * F * DOCf_y * MCF_y
-
-  # Check that W has columns: year, waste_type, mass_tonnes
-  if(!all(c("year","waste_type","mass_tonnes") %in% names(W_use))) {
-    stop("Input data frame W must have columns: year, waste_type, mass_tonnes")
+calcSWDSEmissionsSimplified <- function(W,
+                                      phi_y = 1,
+                                      f_y = 0,
+                                      GWP_CH4 = 28,
+                                      climate_zone = "tropical_wet",
+                                      year_target = max(W$year),
+                                      default_table = NULL,
+                                      by_region = FALSE) {
+  
+  if(is.null(default_table)) {
+    default_table <- data.frame(
+      x = 1:21,
+      tropical_wet = c(0.005800,0.004212,0.003093,0.002275,0.001657,0.001198,0.000867,
+                       0.000635,0.000474,0.000362,0.000284,0.000228,0.000189,0.000160,
+                       0.000138,0.000122,0.000109,0.000098,0.000090,0.000082,0.000076),
+      tropical_dry = c(0.001856,0.001724,0.001601,0.001487,0.001381,0.001281,0.001189,
+                       0.001103,0.001024,0.000950,0.000881,0.000817,0.000757,0.000702,
+                       0.000651,0.000603,0.000559,0.000518,0.000480,0.000445,0.000413),
+      boreal_temperate_wet = c(0.003382,0.002913,0.002511,0.002163,0.001861,0.001599,
+                               0.001371,0.001174,0.001004,0.000859,0.000734,0.000629,
+                               0.000539,0.000463,0.000399,0.000344,0.000298,0.000259,
+                               0.000226,0.000197,0.000173),
+      boreal_temperate_dry = c(0.001399,0.001325,0.001254,0.001188,0.001125,0.001065,
+                               0.001008,0.000954,0.000904,0.000855,0.000810,0.000766,
+                               0.000725,0.000687,0.000650,0.000615,0.000582,0.000551,
+                               0.000521,0.000493,0.000467)
+    )
   }
-
-  # Sum over each row
-  partial_sum <- 0
-  for(r in seq_len(nrow(W_use))) {
-    row_year  <- W_use$year[r]
-    row_type  <- as.character(W_use$waste_type[r])
-    row_mass  <- W_use$mass_tonnes[r]
-    if(!row_type %in% names(DOCj)) stop("DOCj does not have an entry for waste type: ", row_type)
-    if(!row_type %in% names(k_j))   stop("k_j does not have an entry for waste type: ", row_type)
-
-    d_j   <- DOCj[[row_type]]
-    k_val <- k_j[[row_type]]
-    age   <- year_target - row_year
-    if(age < 0) age <- 0
-
-    # Summation term = W_j,x * DOC_j * exp(-k_j*(y-x)) * (1 - exp(-k_j))
-    term <- row_mass * d_j * exp(-k_val * age) * (1 - exp(-k_val))
-    partial_sum <- partial_sum + term
+  
+  # Check if W has a region column, if not, add a default region
+  if(!"region" %in% names(W)) {
+    W$region <- "default"
   }
-
-  result_tco2e <- outside_factor * partial_sum
-  # Ensure emissions are non-negative and cumulative emissions never decline
-  result_tco2e <- pmax(result_tco2e, 0)
-  return(result_tco2e)
-}
-
-# -----------------------------------------------------------
-#' Calculate SWDS CH4 Emissions (Monthly Model)
-#'
-#' @description
-#'   Implements Equation (2) from Tool 04 (v08.1) for a monthly approach.
-#'
-#' @param W A data.frame or list giving the amounts of waste disposed (W_j,i)
-#'        Must include columns: month, waste_type, mass_tonnes.
-#'        month is a numeric from 1..N.
-#' @param DOCj Vector or named list of degradable organic carbon fraction(s).
-#' @param k_j Vector or named list of decay rates for each waste type j (1/yr).
-#' @param phi_y Model correction factor (phi_y).
-#' @param f_y Fraction of CH4 captured and destroyed (f_y).
-#' @param GWP_CH4 Global Warming Potential of CH4.
-#' @param OX Oxidation factor.
-#' @param F Fraction of CH4 in landfill gas.
-#' @param DOCf_m Fraction of degradable organic carbon that decomposes (DOCf).
-#' @param MCF_y Methane correction factor.
-#' @param month_target The month m for which we want to calculate CH4 generation.
-#'
-#' @return Estimated CH4 emissions (in t CO2-equivalent) for that month.
-#'
-#' @references
-#'   Tool 04: Emissions from solid waste disposal sites (Version 08.1).
-#'
-#' @examples
-#' # Example monthly data:
-#' monthly_data <- data.frame(
-#'   month = rep(1:6, each=2),
-#'   waste_type = rep(c("food","paper"), 6),
-#'   mass_tonnes = c(10,5,12,6,14,7,16,8,18,9,20,10)
-#' )
-#' docj  <- c(food=0.15, paper=0.40)
-#' kj    <- c(food=0.06, paper=0.04)
-#' res <- calcSWDSEmissionsMonthly(
-#'   W=monthly_data, DOCj=docj, k_j=kj,
-#'   phi_y=1, f_y=0, GWP_CH4=28, OX=0.1, F=0.5,
-#'   DOCf_m=0.5, MCF_y=1, month_target=6
-#' )
-#' @export
-calcSWDSEmissionsMonthly <- function(W,
-                                     DOCj,
-                                     k_j,
-                                     phi_y = 1,
-                                     f_y   = 0,
-                                     GWP_CH4 = 28,
-                                     OX = 0.1,
-                                     F  = 0.5,
-                                     DOCf_m = 0.5,
-                                     MCF_y  = 1,
-                                     month_target = 1) {
-  # Filter data for months <= month_target
-  W_use <- W[W$month <= month_target, , drop=FALSE]
-  outside_factor <- phi_y * (1 - f_y) * GWP_CH4 * (1 - OX) * (16/12) * F * DOCf_m * MCF_y
-
-  partial_sum <- 0
-  for(r in seq_len(nrow(W_use))) {
-    row_month <- W_use$month[r]
-    row_type  <- as.character(W_use$waste_type[r])
-    row_mass  <- W_use$mass_tonnes[r]
-
-    if(!row_type %in% names(DOCj)) stop("DOCj does not have an entry for waste type: ", row_type)
-    if(!row_type %in% names(k_j))   stop("k_j does not have an entry for waste type: ", row_type)
-
-    d_j   <- DOCj[[row_type]]
-    k_val <- k_j[[row_type]]
-    age_m <- month_target - row_month
-    if(age_m < 0) age_m <- 0
-
-    term <- row_mass * d_j * exp(-k_val * (age_m / 12)) * (1 - exp(-k_val / 12))
-    partial_sum <- partial_sum + term
+  
+  # Get unique regions
+  regions <- unique(W$region)
+  
+  # Initialize results vector
+  results <- numeric(length(regions))
+  names(results) <- regions
+  
+  # Process each region
+  for(region in regions) {
+    # Filter data for this region
+    W_region <- W[W$region == region, , drop = FALSE]
+    
+    # Get region-specific parameters
+    phi_region <- if(length(phi_y) > 1 && !is.null(names(phi_y)) && region %in% names(phi_y)) phi_y[region] else phi_y[1]
+    f_region <- if(length(f_y) > 1 && !is.null(names(f_y)) && region %in% names(f_y)) f_y[region] else f_y[1]
+    climate_zone_region <- if(length(climate_zone) > 1 && !is.null(names(climate_zone)) && region %in% names(climate_zone)) climate_zone[region] else climate_zone[1]
+    year_target_region <- if(length(year_target) > 1 && !is.null(names(year_target)) && region %in% names(year_target)) year_target[region] else year_target[1]
+    
+    outside_factor <- phi_region * (1 - f_region) * GWP_CH4
+    
+    # Filter W for year <= year_target for this region
+    W_use <- W_region[W_region$year <= year_target_region, , drop = FALSE]
+    
+    partial_sum <- 0
+    for(r in seq_len(nrow(W_use))) {
+      x_val <- W_use$year[r]
+      mass <- W_use$mass_tonnes[r]
+      row_id <- if(x_val > 21) 21 else x_val
+      factor_for_x <- default_table[row_id, climate_zone_region]
+      partial_sum <- partial_sum + factor_for_x * mass
+    }
+    
+    result_tco2e <- outside_factor * partial_sum
+    # Ensure emissions are non-negative
+    result_tco2e <- max(result_tco2e, 0)
+    results[region] <- result_tco2e
   }
-
-  result_tco2e <- outside_factor * partial_sum
-  return(result_tco2e)
+  
+  # Return results
+  if(by_region) {
+    return(results)
+  } else {
+    return(sum(results))
+  }
 }

@@ -3,8 +3,13 @@ export(calcSWDSEmissionsMonthly)
 export(calcSWDSEmissionsSimplified)
 export(runSWDSFODApp)
 
+# Waste estimation functions
+export(estimateMSWGeneration)
+export(distributeMSWByType)
+export(projectWasteGeneration)
+
 import(shiny)
 import(ggplot2)
 import(DT)
-
-# For roxygen2-generated documentation
+importFrom(stats, pmax)
+importFrom(utils, read.csv, write.csv)
