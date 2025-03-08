@@ -39,10 +39,27 @@ ui <- fluidPage(
     ),
     mainPanel(
       tabsetPanel(
-        tabPanel("Results Table", DTOutput("emissionsTable")),
-        tabPanel("Bar Plot", plotOutput("emissionsPlot")),
-        tabPanel("Area Plot", plotOutput("areaPlot")),
-        tabPanel("Decay Chart", plotOutput("decayChart"))
+        tabPanel("Results Table", 
+                 DTOutput("emissionsTable"),
+                 downloadButton("downloadEmissionsTable", "Export to CSV")),
+        
+        tabPanel("Bar Plot", 
+                 plotOutput("emissionsPlot"),
+                 h4("Annual Values"),
+                 DTOutput("barPlotTable"),
+                 downloadButton("downloadBarPlotTable", "Export to CSV")),
+        
+        tabPanel("Area Plot", 
+                 plotOutput("areaPlot"),
+                 h4("Time Series Data"),
+                 DTOutput("areaPlotTable"),
+                 downloadButton("downloadAreaPlotTable", "Export to CSV")),
+        
+        tabPanel("Decay Chart", 
+                 plotOutput("decayChart"),
+                 h4("Annual Decay Values"),
+                 DTOutput("decayTable"),
+                 downloadButton("downloadDecayTable", "Export to CSV"))
       )
     )
   )
@@ -53,7 +70,7 @@ server <- function(input, output, session) {
   # --- 1) Load CSV data ---
   wasteData <- reactive({
     req(input$file1)
-    read.csv(input$file1$datapath, stringsAsFactors = FALSE)
+    read.csv(input$file1$datapath, header = TRUE, stringsAsFactors = FALSE)
   })
 
   # --- 2) Single-value Emissions Calculation ---
@@ -123,20 +140,26 @@ server <- function(input, output, session) {
       if (approach == "annual") {
         DOCj <- c(food = 0.15, paper = 0.4, other = 0.2)
         k_j  <- c(food = 0.06, paper = 0.04, other = 0.05)
-        cumulative <- sapply(years, function(y) {
+        incremental <- sapply(years, function(y) {
           calcSWDSEmissionsYearly(W = df, DOCj = DOCj, k_j = k_j,
                                   phi_y = phi_val, f_y = f_val, GWP_CH4 = gwp,
                                   OX = ox_val, F = F_, DOCf_y = docf,
                                   MCF_y = mcf, year_target = y)
         })
+
+        incremental <- pmax(incremental, 0)  # Ensure incremental emissions are non-negative
+        cumulative <- cumsum(incremental)    # Correct cumulative emissions calculation
       } else {
+        # For simplified approach
         cumulative <- sapply(years, function(y) {
           calcSWDSEmissionsSimplified(W = df, phi_y = phi_val,
                                       f_y = f_val, GWP_CH4 = gwp,
                                       climate_zone = cz, year_target = y)
         })
+        # Calculate incremental from cumulative
+        incremental <- c(cumulative[1], diff(cumulative))
+        incremental <- pmax(incremental, 0)  # Ensure non-negative
       }
-      incremental <- c(cumulative[1], diff(cumulative))
       ts_df <- data.frame(Time = years, Incremental = incremental, Cumulative = cumulative)
       ts_df$Incremental_GgCH4 <- ts_df$Incremental / (gwp * 1000)
       ts_df$Cumulative_GgCH4  <- ts_df$Cumulative  / (gwp * 1000)
@@ -145,13 +168,17 @@ server <- function(input, output, session) {
       months <- seq(min(df$month), input$yearMonthTarget)
       DOCj <- c(food = 0.15, paper = 0.4, other = 0.2)
       k_j  <- c(food = 0.06, paper = 0.04, other = 0.05)
-      cumulative <- sapply(months, function(m) {
+      incremental <- sapply(months, function(m) {
         calcSWDSEmissionsMonthly(W = df, DOCj = DOCj, k_j = k_j,
                                  phi_y = phi_val, f_y = f_val, GWP_CH4 = gwp,
                                  OX = ox_val, F = F_, DOCf_m = docf,
                                  MCF_y = mcf, month_target = m)
       })
-      incremental <- c(cumulative[1], diff(cumulative))
+      
+      incremental <- pmax(incremental, 0)  # Ensure non-negative values
+      incremental <- pmax(incremental, 0)  # Ensure non-negative values
+      cumulative <- cumsum(incremental)    # Calculate cumulative values
+      
       ts_df <- data.frame(Time = months, Incremental = incremental, Cumulative = cumulative)
       ts_df$Incremental_GgCH4 <- ts_df$Incremental / (gwp * 1000)
       ts_df$Cumulative_GgCH4  <- ts_df$Cumulative  / (gwp * 1000)
@@ -161,14 +188,13 @@ server <- function(input, output, session) {
 
   # --- 4) Decay Data for Each Deposit (Annual Only) ---
   decayData <- eventReactive(input$calcBtn, {
-    if (input$approach != "annual") return(NULL)
+    validate(need(input$approach == "annual", "Decay chart available only for Annual Approach"))
     df <- wasteData()
 
     # Hardcode sample DOCj/k_j (user can adapt for real usage)
     DOCj <- c(food = 0.15, paper = 0.4, other = 0.2)
     k_j  <- c(food = 0.06, paper = 0.04, other = 0.05)
 
-    # Factor outside sums (same as in calcSWDSEmissionsYearly):
     outside_factor <- input$phi * (1 - input$f) * input$gwpslid * (1 - input$ox) *
                       (16/12) * input$Fval * input$docf * input$mcf
 
@@ -200,7 +226,7 @@ server <- function(input, output, session) {
   })
 
   # Helper function to transform raw per‐deposit data into stacked lines
-  stackedDecayData <- function(df_decay) {
+  stackedDecayData <- function(df_decay, gwpslid) {
     # Pivot wide so each DepositYear is a column
     df_wide <- df_decay %>%
       pivot_wider(names_from = DepositYear, values_from = Emission_tCO2e, values_fill = 0) %>%
@@ -273,9 +299,11 @@ server <- function(input, output, session) {
                             name = "Emissions (Gg CH4)")
       ) +
       theme_minimal() +
-      labs(title = "Estimated CH4 Emissions",
-           x = "",
-           y = "Emissions (t CO2e)")
+      labs(
+        title = "Estimated CH4 Emissions",
+        x = "",
+        y = "Emissions (t CO2e)"
+      )
   })
 
   # Area Plot of incremental & cumulative time series
@@ -300,7 +328,7 @@ server <- function(input, output, session) {
       theme_minimal()
   })
 
-  # Decay Chart (stacked lines) for each deposit year (Annual only)
+  # Decay Chart (stacked columns) for each deposit year (Annual only)
   output$decayChart <- renderPlot({
     if (input$approach != "annual") {
       # If not annual, show a placeholder
@@ -319,35 +347,215 @@ server <- function(input, output, session) {
                    size = 6) +
           theme_void()
       } else {
-        # Convert to stacked lines
-        df_stacked <- stackedDecayData(df_decay)
-
-        # Convert to GgCH4
-        df_stacked <- df_stacked %>%
-          mutate(Stacked_Emission_GgCH4 = Stacked_Emission_tCO2e / (input$gwpslid * 1000))
-
-        ggplot(df_stacked,
+        # Group by evaluation year and deposit year, then sum emissions
+        df_grouped <- df_decay %>%
+          group_by(EvaluationYear, DepositYear) %>%
+          summarise(Emission_tCO2e = sum(Emission_tCO2e), .groups = 'drop') %>%
+          mutate(Emission_GgCH4 = Emission_tCO2e / (input$gwpslid * 1000))
+        
+        # Create stacked column chart
+        ggplot(df_grouped,
                aes(x = EvaluationYear,
-                   y = Stacked_Emission_tCO2e,
-                   color = factor(DepositYear))) +
-          geom_col() +
+                   y = Emission_tCO2e,
+                   fill = factor(DepositYear))) +
+          geom_col(position = "stack") +
           scale_y_continuous(
             sec.axis = sec_axis(~ . / (input$gwpslid * 1000),
-                                name = "Emissions (Gg CH4)")
+                              name = "Emissions (Gg CH4)")
           ) +
           labs(
-            title = "Stacked Lines: Decay of Emissions by Deposit Year",
-            subtitle = "Each line is cumulative up to that deposit year",
+            title = "Stacked Columns: Decay of Emissions by Deposit Year",
+            subtitle = "Each column shows emissions from waste deposited in different years",
             x = "Evaluation Year",
             y = "Emissions (t CO2e)",
-            color = "Deposit Year"
+            fill = "Deposit Year"
           ) +
           theme_minimal()
       }
     }
   })
-}
 
-shinyApp(ui, server)
+  # Add these after the existing plot outputs
+
+  # Table for bar plot values
+  output$barPlotTable <- renderDT({
+    req(emissionsResult())
+    
+    # Get the data and approach
+    df_val <- emissionsResult()
+    approach <- input$approach
+    
+    # Create a table with more details
+    table_data <- data.frame(
+      Approach = approach,
+      Year_or_Month = input$yearMonthTarget,
+      Emissions_tCO2e = df_val$Emissions_tCO2e,
+      Emissions_GgCH4 = df_val$Emissions_GgCH4
+    )
+    
+    datatable(table_data, 
+              options = list(pageLength = 5),
+              rownames = FALSE) %>%
+      formatRound(columns = c("Emissions_tCO2e", "Emissions_GgCH4"), digits = 4)
+  })
+
+  # Table for decay chart values
+  output$decayTable <- renderDT({
+    req(input$approach == "annual")
+    req(decayData())
+    
+    df_decay <- decayData()
+    
+    if (nrow(df_decay) == 0) {
+      return(NULL)
+    }
+    
+    # Group by evaluation year and deposit year for the table
+    df_table <- df_decay %>%
+      group_by(EvaluationYear, DepositYear) %>%
+      summarise(
+        Emission_tCO2e = sum(Emission_tCO2e),
+        Emission_GgCH4 = sum(Emission_GgCH4),
+        .groups = 'drop'
+      ) %>%
+      arrange(EvaluationYear, DepositYear)
+    
+    # Create a pivot table with deposit years as columns
+    df_pivot <- df_table %>%
+      pivot_wider(
+        id_cols = EvaluationYear,
+        names_from = DepositYear,
+        values_from = c(Emission_tCO2e, Emission_GgCH4),
+        values_fill = 0
+      )
+    
+    # Add a total column
+    df_pivot$Total_tCO2e <- rowSums(select(df_pivot, starts_with("Emission_tCO2e")))
+    df_pivot$Total_GgCH4 <- rowSums(select(df_pivot, starts_with("Emission_GgCH4")))
+    
+    datatable(df_pivot, 
+              options = list(
+                pageLength = 10,
+                scrollX = TRUE
+              ),
+              rownames = FALSE) %>%
+      formatRound(columns = grep("Emission|Total", names(df_pivot)), digits = 4)
+  })
+
+  # Table for area plot time series data
+  output$areaPlotTable <- renderDT({
+    req(timeSeriesData())
+    
+    # Get the time series data
+    ts_df <- timeSeriesData()
+    period_label <- ifelse(input$approach == "monthly", "Month", "Year")
+    
+    # Rename the Time column to be more descriptive
+    names(ts_df)[names(ts_df) == "Time"] <- period_label
+    
+    # Format and display the table
+    datatable(ts_df, 
+              options = list(
+                pageLength = 10,
+                scrollX = TRUE
+              ),
+              rownames = FALSE) %>%
+      formatRound(columns = c("Incremental", "Cumulative", 
+                             "Incremental_GgCH4", "Cumulative_GgCH4"), 
+                  digits = 4)
+  })
+
+  # Add these download handlers to the server function
+
+  # Download handler for emissions table
+  output$downloadEmissionsTable <- downloadHandler(
+    filename = function() {
+      paste("emissions-results-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(emissionsResult(), file, row.names = FALSE)
+    }
+  )
+
+  # Download handler for bar plot table
+  output$downloadBarPlotTable <- downloadHandler(
+    filename = function() {
+      paste("bar-plot-data-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      # Create the table data
+      df_val <- emissionsResult()
+      approach <- input$approach
+      
+      table_data <- data.frame(
+        Approach = approach,
+        Year_or_Month = input$yearMonthTarget,
+        Emissions_tCO2e = df_val$Emissions_tCO2e,
+        Emissions_GgCH4 = df_val$Emissions_GgCH4
+      )
+      
+      write.csv(table_data, file, row.names = FALSE)
+    }
+  )
+
+  # Download handler for area plot time series data
+  output$downloadAreaPlotTable <- downloadHandler(
+    filename = function() {
+      paste("time-series-data-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      # Prepare time series data
+      ts_df <- timeSeriesData()
+      period_label <- ifelse(input$approach == "monthly", "Month", "Year")
+      
+      # Rename the Time column
+      names(ts_df)[names(ts_df) == "Time"] <- period_label
+      
+      write.csv(ts_df, file, row.names = FALSE)
+    }
+  )
+
+  # Download handler for decay table
+  output$downloadDecayTable <- downloadHandler(
+    filename = function() {
+      paste("decay-data-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      req(input$approach == "annual")
+      df_decay <- decayData()
+      
+      if (nrow(df_decay) == 0) {
+        # Create an empty dataframe with message
+        empty_df <- data.frame(Message = "No decay data available")
+        write.csv(empty_df, file, row.names = FALSE)
+      } else {
+        # Group by evaluation year and deposit year for the table
+        df_table <- df_decay %>%
+          group_by(EvaluationYear, DepositYear) %>%
+          summarise(
+            Emission_tCO2e = sum(Emission_tCO2e),
+            Emission_GgCH4 = sum(Emission_GgCH4),
+            .groups = 'drop'
+          ) %>%
+          arrange(EvaluationYear, DepositYear)
+        
+        # Create a pivot table with deposit years as columns
+        df_pivot <- df_table %>%
+          pivot_wider(
+            id_cols = EvaluationYear,
+            names_from = DepositYear,
+            values_from = c(Emission_tCO2e, Emission_GgCH4),
+            values_fill = 0
+          )
+        
+        # Add a total column
+        df_pivot$Total_tCO2e <- rowSums(select(df_pivot, starts_with("Emission_tCO2e")))
+        df_pivot$Total_GgCH4 <- rowSums(select(df_pivot, starts_with("Emission_GgCH4")))
+        
+        write.csv(df_pivot, file, row.names = FALSE)
+      }
+    }
+  )
+}
 
 shinyApp(ui, server)
